@@ -9,6 +9,7 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 textract = boto3.client('textract')
+comprehend = boto3.client('comprehend')
 
 def fetch_file_from_url(url):
     try:
@@ -31,6 +32,28 @@ def clean_extracted_text(text):
                 cleaned_lines.append(line.strip())  # Remove any leading/trailing whitespace
 
     return "\n".join(cleaned_lines)
+
+def comprehend_sentiment_handler(text):
+    try:
+        response = comprehend.detect_sentiment(Text=text, LanguageCode='en')
+        return {
+            "statusCode": 200,
+            "headers": {
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Headers": "Content-Type",
+                "Access-Control-Allow-Methods": "OPTIONS,POST,GET"
+            },
+            "body": json.dumps({
+                "Sentiment": response['Sentiment'],
+                "SentimentScore": response['SentimentScore']
+            })
+        }
+    except Exception as e:
+        logger.error(f"Error processing sentiment analysis: {str(e)}")
+        return {
+            "statusCode": 500,
+            "body": json.dumps({"error": f"Failed to analyze sentiment: {str(e)}"})
+        }
 
 def textract_handler(event, context):
     try:
@@ -85,4 +108,55 @@ def textract_handler(event, context):
         return {
             "statusCode": 500,
             "body": json.dumps({"error": f"Failed to process the document: {str(e)}"})
+        }
+    
+def textract_comprehend_handler(event, context):
+    # Extract text from document using Textract
+    textract_response = textract_handler(event, context)
+    
+    if textract_response["statusCode"] != 200:
+        # Return error from textract_handler if there was any
+        return textract_response
+    
+    extracted_text = " ".join(json.loads(textract_response["body"]))
+    
+    # Use extracted text for sentiment analysis using Comprehend
+    sentiment_response = comprehend_sentiment_handler(extracted_text)
+    
+    # Combining the two results: extracted text and sentiment analysis
+    combined_result = {
+        "ExtractedText": extracted_text.split(" "),
+        "SentimentAnalysis": json.loads(sentiment_response["body"])
+    }
+    
+    return {
+        "statusCode": 200,
+        "headers": {
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Headers": "Content-Type",
+            "Access-Control-Allow-Methods": "OPTIONS,POST,GET"
+        },
+        "body": json.dumps(combined_result)
+    }
+
+def lambda_handler(event, context):
+    body = json.loads(event['body'])
+    action = body.get('action')
+
+    if action == 'textract':
+        return textract_handler(event, context)
+    elif action == 'comprehend':
+        text = body.get('text')
+        if not text:
+            return {
+                "statusCode": 400,
+                "body": json.dumps({"error": "Missing text for sentiment analysis."})
+            }
+        return comprehend_sentiment_handler(text)
+    elif action == 'textract-comprehend':
+        return textract_comprehend_handler(event, context)
+    else:
+        return {
+            "statusCode": 400,
+            "body": json.dumps({"error": "Invalid action specified."})
         }

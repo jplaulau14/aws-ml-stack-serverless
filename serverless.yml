@@ -58,11 +58,11 @@ provider:
 #    - include-me.py
 #    - include-me-dir/**
 functions:
-  textract_handler:
-    handler: handler.textract_handler
+  lambda_handler:
+    handler: handler.lambda_handler
     events:
      - http:
-         path: textract-function/textract_handler
+         path: textract-function/lambda_handler
          method: post
 #    The following are a few example events you can configure
 #    NOTE: Please make sure to change your handler code to work with those events
