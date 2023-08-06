@@ -39,15 +39,15 @@ provider:
             - "s3:GetObject"
             - "s3:PutObject"
           Resource:
-            - "arn:aws:s3:::aws-ml-stack-demo"
-            - "arn:aws:s3:::aws-ml-stack-demo/*"
+            - "arn:aws:s3:::aws-ml-stack-demo-cebu"
+            - "arn:aws:s3:::aws-ml-stack-demo-cebu/*"
                 
         # Statement for CloudWatch Logs
         - Effect: "Allow"
           Action:
             - "logs:PutLogEvents"
           Resource:
-            - "arn:aws:logs:us-east-1:432320963886:log-group:/aws/lambda/aws-ml-stack-serverless-dev*:*:*"
+            - "arn:aws:logs:*:*:*"
 
         # Statement for Textract
         - Effect: "Allow"
