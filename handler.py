@@ -4,12 +4,15 @@ import boto3
 import base64
 import requests
 from trp import Document
+import time
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 textract = boto3.client('textract')
 comprehend = boto3.client('comprehend')
+polly = boto3.client('polly')
+transcribe = boto3.client('transcribe')
 
 def fetch_file_from_url(url):
     try:
@@ -139,6 +142,70 @@ def textract_comprehend_handler(event, context):
         "body": json.dumps(combined_result)
     }
 
+def polly_handler(text, format='mp3'):
+    try:
+        response = polly.synthesize_speech(Text=text, OutputFormat=format, VoiceId='Joanna')
+        
+        audio_stream = response['AudioStream'].read()
+        encoded_audio = base64.b64encode(audio_stream).decode('utf-8')
+        
+        return {
+            "statusCode": 200,
+            "headers": {
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Headers": "Content-Type",
+                "Access-Control-Allow-Methods": "OPTIONS,POST,GET"
+            },
+            "body": json.dumps({"audio": encoded_audio})
+        }
+    except Exception as e:
+        logger.error(f"Error using Polly: {str(e)}")
+        return {
+            "statusCode": 500,
+            "body": json.dumps({"error": f"Failed to convert text to speech: {str(e)}"})
+        }
+    
+def transcribe_handler(audio_file_path, language_code='en-US'):
+    job_name = f"TranscribeJob-{int(time.time())}"
+
+    # Assuming you'll use boto3 to upload the local file to an S3 bucket.
+    s3 = boto3.resource('s3')
+    bucket_name = 'aws-ml-stack-demo'
+    s3_key = f"audio/{job_name}.mp3"
+    s3.Bucket(bucket_name).upload_file(audio_file_path, s3_key)
+
+    s3_audio_url = f"s3://{bucket_name}/{s3_key}"
+
+    transcribe.start_transcription_job(
+        TranscriptionJobName=job_name,
+        LanguageCode=language_code,
+        MediaFormat='mp3',
+        Media={
+            'MediaFileUri': s3_audio_url
+        }
+    )
+
+    while True:
+        status = transcribe.get_transcription_job(TranscriptionJobName=job_name)
+        if status['TranscriptionJob']['TranscriptionJobStatus'] in ['COMPLETED', 'FAILED']:
+            break
+        time.sleep(10)
+
+    if status['TranscriptionJob']['TranscriptionJobStatus'] == 'COMPLETED':
+        transcription_url = status['TranscriptionJob']['Transcript']['TranscriptFileUri']
+        transcription_response = requests.get(transcription_url)
+        transcription_text = transcription_response.json()['results']['transcripts'][0]['transcript']
+        return {
+            "statusCode": 200,
+            "body": json.dumps({"transcription": transcription_text})
+        }
+    else:
+        return {
+            "statusCode": 500,
+            "body": json.dumps({"error": "Failed to transcribe the audio."})
+        }
+
+
 def lambda_handler(event, context):
     body = json.loads(event['body'])
     action = body.get('action')
@@ -155,6 +222,25 @@ def lambda_handler(event, context):
         return comprehend_sentiment_handler(text)
     elif action == 'textract-comprehend':
         return textract_comprehend_handler(event, context)
+    
+    elif action == 'polly':
+        text = body.get('text')
+        if not text:
+            return {
+                "statusCode": 400,
+                "body": json.dumps({"error": "Missing text for text to speech conversion."})
+            }
+        return polly_handler(text)
+    
+    elif action == 'transcribe':
+        audio_base64 = body.get('audio_base64')
+        if not audio_base64:
+            return {
+                "statusCode": 400,
+                "body": json.dumps({"error": "Missing audio for transcription."})
+            }
+        return transcribe_handler(audio_base64)
+
     else:
         return {
             "statusCode": 400,
