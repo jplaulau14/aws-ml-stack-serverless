@@ -11,14 +11,14 @@
 #
 # Happy Coding!
 
-service: textract-function
+service: aws-ml-stack-serverless
 # app and org for use with dashboard.serverless.com
 #app: your-app-name
 #org: your-org-name
 
 # You can pin your service to only deploy with a specific Serverless version
 # Check out our docs for more details
-frameworkVersion: '3'
+frameworkVersion: "3"
 
 provider:
   name: aws
@@ -26,25 +26,52 @@ provider:
 
 # you can overwrite defaults here
 #  stage: dev
-#  region: us-east-1
+  region: ap-southeast-1
 
 # you can add statements to the Lambda function's IAM Role here
-#  iam:
-#    role:
-#      statements:
-#        - Effect: "Allow"
-#          Action:
-#            - "s3:ListBucket"
-#          Resource: { "Fn::Join" : ["", ["arn:aws:s3:::", { "Ref" : "ServerlessDeploymentBucket" } ] ]  }
-#        - Effect: "Allow"
-#          Action:
-#            - "s3:PutObject"
-#          Resource:
-#            Fn::Join:
-#              - ""
-#              - - "arn:aws:s3:::"
-#                - "Ref" : "ServerlessDeploymentBucket"
-#                - "/*"
+  iam:
+    role:
+      statements:
+        # Statement for S3 bucket "aws-ml-stack-demo"
+        - Effect: "Allow"
+          Action:
+            - "s3:ListBucket"
+            - "s3:GetObject"
+            - "s3:PutObject"
+          Resource:
+            - "arn:aws:s3:::aws-ml-stack-demo"
+            - "arn:aws:s3:::aws-ml-stack-demo/*"
+                
+        # Statement for CloudWatch Logs
+        - Effect: "Allow"
+          Action:
+            - "logs:PutLogEvents"
+          Resource:
+            - "arn:aws:logs:us-east-1:432320963886:log-group:/aws/lambda/aws-ml-stack-serverless-dev*:*:*"
+
+        # Statement for Textract
+        - Effect: "Allow"
+          Action:
+            - "textract:DetectDocumentText"
+          Resource: "*"
+
+        # Statement for Comprehend
+        - Effect: "Allow"
+          Action:
+            - "comprehend:DetectSentiment"
+          Resource: "*"
+
+        # Statement for Polly
+        - Effect: "Allow"
+          Action:
+            - "polly:*"
+          Resource: "*"
+
+        # State for Transcribe
+        - Effect: "Allow"
+          Action:
+            - "transcribe:*"
+          Resource: "*"
 
 # you can define service wide environment variables here
 #  environment:
@@ -61,9 +88,9 @@ functions:
   lambda_handler:
     handler: handler.lambda_handler
     events:
-     - http:
-         path: textract-function/lambda_handler
-         method: post
+      - http:
+          path: aws-ml-stack-serverless/lambda_handler
+          method: post
 #    The following are a few example events you can configure
 #    NOTE: Please make sure to change your handler code to work with those events
 #    Check the event documentation for details

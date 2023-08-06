@@ -220,6 +220,7 @@ def lambda_handler(event, context):
                 "body": json.dumps({"error": "Missing text for sentiment analysis."})
             }
         return comprehend_sentiment_handler(text)
+    
     elif action == 'textract-comprehend':
         return textract_comprehend_handler(event, context)
     
