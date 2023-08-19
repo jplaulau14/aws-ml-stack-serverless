@@ -198,6 +198,11 @@ def transcribe_handler(audio_file_path, language_code='en-US'):
         transcription_text = transcription_response.json()['results']['transcripts'][0]['transcript']
         return {
             "statusCode": 200,
+            "headers": {
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Headers": "Content-Type",
+                "Access-Control-Allow-Methods": "OPTIONS,POST,GET"
+            },
             "body": json.dumps({"transcription": transcription_text})
         }
     else:
@@ -213,14 +218,25 @@ def rekognition_handler(event, context):
         image_data = body.get('image_data')
         
         if not rekognition_type:
+            
             return {
                 "statusCode": 400,
+                "headers": {
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Headers": "Content-Type",
+                "Access-Control-Allow-Methods": "OPTIONS,POST,GET"
+                },
                 "body": json.dumps({"error": "Missing 'rekognition_type' in the request."})
             }
 
         if not image_data:
             return {
                 "statusCode": 400,
+                "headers": {
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Headers": "Content-Type",
+                "Access-Control-Allow-Methods": "OPTIONS,POST,GET"
+                },
                 "body": json.dumps({"error": "Missing 'image_data'."})
             }
 
