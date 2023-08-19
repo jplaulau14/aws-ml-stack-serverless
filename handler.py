@@ -13,6 +13,7 @@ textract = boto3.client('textract')
 comprehend = boto3.client('comprehend')
 polly = boto3.client('polly')
 transcribe = boto3.client('transcribe')
+rekognition = boto3.client('rekognition')
 
 def fetch_file_from_url(url):
     try:
@@ -204,7 +205,77 @@ def transcribe_handler(audio_file_path, language_code='en-US'):
             "statusCode": 500,
             "body": json.dumps({"error": "Failed to transcribe the audio."})
         }
+    
+def rekognition_handler(event, context):
+    try:
+        body = json.loads(event['body'])
+        rekognition_type = body.get('rekognition_type')
+        image_data = body.get('image_data')
+        
+        if not rekognition_type:
+            return {
+                "statusCode": 400,
+                "body": json.dumps({"error": "Missing 'rekognition_type' in the request."})
+            }
 
+        if not image_data:
+            return {
+                "statusCode": 400,
+                "body": json.dumps({"error": "Missing 'image_data'."})
+            }
+
+        # Decoding the base64 image content
+        image_bytes = base64.b64decode(image_data)
+
+        if rekognition_type == 'label':
+            response = rekognition.detect_labels(
+                Image={
+                    'Bytes': image_bytes
+                }
+            )
+            labels = response.get('Labels', [])
+            return {
+                "statusCode": 200,
+                "headers": {
+                    "Access-Control-Allow-Origin": "*",
+                    "Access-Control-Allow-Headers": "Content-Type",
+                    "Access-Control-Allow-Methods": "OPTIONS,POST,GET"
+                },
+                "body": json.dumps({"labels": labels})
+            }
+
+        elif rekognition_type == 'detect_faces':
+            # For the sake of simplicity, I'm using 'ALL' for the Attributes.
+            # If you want more specific attributes, you can adjust the list.
+            response = rekognition.detect_faces(
+                Image={
+                    'Bytes': image_bytes
+                },
+                Attributes=['ALL']
+            )
+            faces = response.get('FaceDetails', [])
+            return {
+                "statusCode": 200,
+                "headers": {
+                    "Access-Control-Allow-Origin": "*",
+                    "Access-Control-Allow-Headers": "Content-Type",
+                    "Access-Control-Allow-Methods": "OPTIONS,POST,GET"
+                },
+                "body": json.dumps({"faces": faces})
+            }
+
+        else:
+            return {
+                "statusCode": 400,
+                "body": json.dumps({"error": f"Invalid 'rekognition_type' specified: {rekognition_type}"})
+            }
+
+    except Exception as e:
+        logger.error(f"Error using Rekognition: {str(e)}")
+        return {
+            "statusCode": 500,
+            "body": json.dumps({"error": f"Failed to process the image: {str(e)}"})
+        }
 
 def lambda_handler(event, context):
     body = json.loads(event['body'])
@@ -212,6 +283,7 @@ def lambda_handler(event, context):
 
     if action == 'textract':
         return textract_handler(event, context)
+    
     elif action == 'comprehend':
         text = body.get('text')
         if not text:
@@ -241,6 +313,9 @@ def lambda_handler(event, context):
                 "body": json.dumps({"error": "Missing audio for transcription."})
             }
         return transcribe_handler(audio_base64)
+    
+    elif action == 'rekognition':
+        return rekognition_handler(event, context)
 
     else:
         return {
