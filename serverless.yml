@@ -73,6 +73,11 @@ provider:
             - "transcribe:*"
           Resource: "*"
 
+        - Effect: "Allow"
+          Action:
+            - "rekognition:*"
+          Resource: "*"
+
 # you can define service wide environment variables here
 #  environment:
 #    variable1: value1

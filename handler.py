@@ -211,20 +211,15 @@ def transcribe_handler(audio_file_path, language_code='en-US'):
             "body": json.dumps({"error": "Failed to transcribe the audio."})
         }
     
-def rekognition_handler(event, context):
+def rekognition_handler(rekognition_type, image_data):
     try:
-        body = json.loads(event['body'])
-        rekognition_type = body.get('rekognition_type')
-        image_data = body.get('image_data')
-        
         if not rekognition_type:
-            
             return {
                 "statusCode": 400,
                 "headers": {
-                "Access-Control-Allow-Origin": "*",
-                "Access-Control-Allow-Headers": "Content-Type",
-                "Access-Control-Allow-Methods": "OPTIONS,POST,GET"
+                    "Access-Control-Allow-Origin": "*",
+                    "Access-Control-Allow-Headers": "Content-Type",
+                    "Access-Control-Allow-Methods": "OPTIONS,POST,GET"
                 },
                 "body": json.dumps({"error": "Missing 'rekognition_type' in the request."})
             }
@@ -233,9 +228,9 @@ def rekognition_handler(event, context):
             return {
                 "statusCode": 400,
                 "headers": {
-                "Access-Control-Allow-Origin": "*",
-                "Access-Control-Allow-Headers": "Content-Type",
-                "Access-Control-Allow-Methods": "OPTIONS,POST,GET"
+                    "Access-Control-Allow-Origin": "*",
+                    "Access-Control-Allow-Headers": "Content-Type",
+                    "Access-Control-Allow-Methods": "OPTIONS,POST,GET"
                 },
                 "body": json.dumps({"error": "Missing 'image_data'."})
             }
@@ -261,8 +256,6 @@ def rekognition_handler(event, context):
             }
 
         elif rekognition_type == 'detect_faces':
-            # For the sake of simplicity, I'm using 'ALL' for the Attributes.
-            # If you want more specific attributes, you can adjust the list.
             response = rekognition.detect_faces(
                 Image={
                     'Bytes': image_bytes
@@ -294,6 +287,7 @@ def rekognition_handler(event, context):
         }
 
 def lambda_handler(event, context):
+    logger.info(f"Received event: {json.dumps(event)}")
     body = json.loads(event['body'])
     action = body.get('action')
 
@@ -331,7 +325,23 @@ def lambda_handler(event, context):
         return transcribe_handler(audio_base64)
     
     elif action == 'rekognition':
-        return rekognition_handler(event, context)
+        rekognition_type = body.get('rekognition_type')
+        image_data = body.get('image_data')
+        if not rekognition_type:
+            logger.error("Missing 'rekognition_type' in the request.")
+            return {
+                "statusCode": 400,
+                "body": json.dumps({"error": "Missing 'rekognition_type' in the request."})
+            }
+        if not image_data:
+            logger.error("Missing 'image_data'.")
+            return {
+                "statusCode": 400,
+                "body": json.dumps({"error": "Missing 'image_data'."})
+            }
+        logger.info(f"Rekognition type: {rekognition_type}")
+        logger.info(f"Image data: {image_data}")
+        return rekognition_handler(rekognition_type, image_data)
 
     else:
         return {
