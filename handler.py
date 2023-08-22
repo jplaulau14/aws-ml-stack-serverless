@@ -14,6 +14,7 @@ comprehend = boto3.client('comprehend')
 polly = boto3.client('polly')
 transcribe = boto3.client('transcribe')
 rekognition = boto3.client('rekognition')
+sagemaker_runtime = boto3.client('sagemaker-runtime')
 
 def fetch_file_from_url(url):
     try:
@@ -285,6 +286,32 @@ def rekognition_handler(rekognition_type, image_data):
             "statusCode": 500,
             "body": json.dumps({"error": f"Failed to process the image: {str(e)}"})
         }
+    
+def sagemaker_handler(endpoint_name, payload):
+    try:
+        response = sagemaker_runtime.invoke_endpoint(
+            EndpointName=endpoint_name,
+            ContentType='application/json',
+            Body=json.dumps(payload)
+        )
+        result = json.loads(response['Body'].read().decode())
+        # Extracting the genre from the response
+        genre = result[0]['label'][0].replace("__label__", "")
+        return {
+            "statusCode": 200,
+            "headers": {
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Headers": "Content-Type",
+                "Access-Control-Allow-Methods": "OPTIONS,POST,GET"
+            },
+            "body": json.dumps(genre)
+        }
+    except Exception as e:
+        logger.error(f"Error invoking SageMaker endpoint: {str(e)}")
+        return {
+            "statusCode": 500,
+            "body": json.dumps({"error": f"Failed to invoke SageMaker endpoint: {str(e)}"})
+        }
 
 def lambda_handler(event, context):
     logger.info(f"Received event: {json.dumps(event)}")
@@ -342,6 +369,23 @@ def lambda_handler(event, context):
         logger.info(f"Rekognition type: {rekognition_type}")
         logger.info(f"Image data: {image_data}")
         return rekognition_handler(rekognition_type, image_data)
+    
+    elif action == 'sagemaker':
+        endpoint_name = body.get('endpoint_name')
+        payload = body.get('payload')
+        if not endpoint_name:
+            logger.error("Missing 'endpoint_name' in the request.")
+            return {
+                "statusCode": 400,
+                "body": json.dumps({"error": "Missing 'endpoint_name' in the request."})
+            }
+        if not payload:
+            logger.error("Missing 'payload' for SageMaker inference.")
+            return {
+                "statusCode": 400,
+                "body": json.dumps({"error": "Missing 'payload' for SageMaker inference."})
+            }
+        return sagemaker_handler(endpoint_name, payload)
 
     else:
         return {
